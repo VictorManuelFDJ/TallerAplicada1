@@ -1,0 +1,112 @@
+﻿@page "/Producto/Index"
+@attribute [Authorize]
+@inject ProductosService productosService
+@rendermode InteractiveServer
+
+<PageTitle>Consulta de Productos</PageTitle>
+
+<div class="container">
+    <div class="card shadow-lg">
+        <div class="card-header">
+            <h5 class="card-title">Consulta de Productos</h5>
+            <a href="/Producto/Create" class="btn btn-primary">
+                <i class="bi bi-plus-square"></i> Crear Producto
+            </a>
+        </div>
+
+        <div class="card-body">
+            @* Filtros *@
+            <div class="row mb-3 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label">Filtrar por:</label>
+                    <InputSelect class="form-select" @bind-Value="Filtro">
+                        <option value="" disabled selected>-- Seleccione --</option>
+                        <option value="Id">Id</option>
+                        <option value="Descripcion">Descripción</option>
+                    </InputSelect>
+                </div>
+                <div class="col-md-5">
+                    <label class="form-label">Búsqueda:</label>
+                    <div class="input-group">
+                        <input class="form-control" @bind="ValorFiltro" placeholder="Escriba para buscar..." />
+                        <button class="btn btn-outline-primary" @onclick="Buscar">
+                            <i class="bi bi-search"></i> Buscar
+                        </button>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <button class="btn btn-outline-secondary" @onclick="Restablecer">
+                        <i class="bi bi-arrow-counterclockwise"></i> Todo
+                    </button>
+                </div>
+            </div>
+
+            @* Tabla *@
+            <table class="table table-hover table-bordered">
+                <thead class="table-striped text-center">
+                    <tr>
+                        <th>Id</th>
+                        <th>Descripción</th>
+                        <th>Costo</th>
+                        <th>Precio</th>
+                        <th>Existencia</th>
+                        <th>Editar</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var prod in ListaProductos)
+                    {
+                        <tr>
+                            <td class="text-center">@prod.ProductoId</td>
+                            <td>@prod.Descripcion</td>
+                            <td class="text-end">@prod.Costo.ToString("C2")</td>
+                            <td class="text-end">@prod.Precio.ToString("C2")</td>
+                            <td class="text-center fw-bold">@prod.Existencia</td>
+                            <td class="text-center">
+                                <a href="/Producto/Edit/@prod.ProductoId" class="btn btn-outline-warning btn-sm">
+                                    <i class="bi bi-pencil-square"></i>
+                                </a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+@code {
+    public List<Productos> ListaProductos { get; set; } = new();
+    public string Filtro { get; set; } = string.Empty;
+    public string ValorFiltro { get; set; } = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        ListaProductos = await productosService.Listar(p => true);
+    }
+
+    private async Task Buscar()
+    {
+        if (string.IsNullOrWhiteSpace(ValorFiltro))
+        {
+            ListaProductos = await productosService.Listar(p => true);
+            return;
+        }
+
+        if (Filtro == "Id" && int.TryParse(ValorFiltro, out int id))
+        {
+            ListaProductos = await productosService.Listar(p => p.ProductoId == id);
+        }
+        else if (Filtro == "Descripcion")
+        {
+            ListaProductos = await productosService.Listar(p => p.Descripcion.Contains(ValorFiltro));
+        }
+    }
+
+    private async Task Restablecer()
+    {
+        ListaProductos = await productosService.Listar(p => true);
+        Filtro = string.Empty;
+        ValorFiltro = string.Empty;
+    }
+}

@@ -1,0 +1,205 @@
+﻿@page "/Entrada/Create"
+@page "/Entrada/Edit/{EntradaId:int}"
+@attribute [Authorize]
+@inject EntradasService entradasService
+@inject ProductosService productosService
+@inject IJSRuntime JSRuntime
+@inject NavigationManager navigationManager
+@rendermode InteractiveServer
+
+<PageTitle>@titulo</PageTitle>
+
+<EditForm Model="Entrada" OnValidSubmit="Guardar">
+    <DataAnnotationsValidator />
+    <div class="container">
+        <div class="card shadow-lg">
+            <div class="card-header text-center">
+                <h5 class="card-title">@titulo</h5>
+            </div>
+
+            <div class="card-body">
+               
+                <div class="row">
+                    <div class="col-md-3">
+                        <label class="form-label">EntradaId</label>
+                        <InputNumber class="form-control" @bind-Value="Entrada.EntradaId" readonly></InputNumber>
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Fecha</label>
+                        <InputDate class="form-control" @bind-Value="Entrada.Fecha"></InputDate>
+                    </div>
+                </div>
+
+                <div class="mt-3">
+                    <label class="form-label">Concepto</label>
+                    <InputText class="form-control" @bind-Value="Entrada.Concepto"></InputText>
+                    <ValidationMessage For="@(() => Entrada.Concepto)" />
+                </div>
+
+               
+                <div class="border border-success p-3 mt-4">
+                    <h6 class="mb-3">Detalle de Entrada</h6>
+
+                    <div class="row align-items-end mb-3">
+                        <div class="col-md-5">
+                            <label>Producto</label>
+                          
+                            <InputSelect @bind-Value="ProductoSeleccionadoId" class="form-select">
+                                <option value="0">-- Seleccione un Producto --</option>
+                                @foreach (var p in productosDisponibles)
+                                {
+                                    <option value="@p.ProductoId">@p.Descripcion (Existencia: @p.Existencia)</option>
+                                }
+                            </InputSelect>
+                        </div>
+                        <div class="col-md-3">
+                            <label>Cantidad</label>
+                            <InputNumber @bind-Value="cantidadDetalle" class="form-control" />
+                        </div>
+                        <div class="col-md-2">
+							 
+                            <button @onclick="AgregarDetalle" type="button" class="btn btn-outline-success">
+                                <i class="bi bi-plus-circle"></i> Agregar
+                            </button>
+                        </div>
+                    </div>
+
+                    <table class="table table-bordered table-sm">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Id Producto</th>
+                                <th>Descripción</th>
+                                <th>Costo</th>
+                                <th>Cantidad</th>
+                                <th>Subtotal</th>
+                                <th>Remover</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                          
+                            @foreach (var detalle in Entrada.Detalles)
+                            {
+                                <tr>
+                                    <td>@detalle.ProductoId</td>
+                                    <td>@(productosDisponibles.FirstOrDefault(p => p.ProductoId == detalle.ProductoId)?.Descripcion)</td>
+                                    <td>@detalle.Costo.ToString("N2")</td>
+                                    <td>@detalle.Cantidad</td>
+                                    <td>@((detalle.Cantidad * detalle.Costo).ToString("N2"))</td>
+                                    <td>
+                                        <button @onclick="() => RemoverDetalle(detalle)" type="button" class="btn btn-sm btn-outline-danger">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card-footer text-center">
+                <a href="/Entrada/Index" class="btn btn-secondary bi bi-arrow-left"> Volver</a>
+                <button type="submit" class="btn btn-primary bi bi-floppy"> Guardar</button>
+                @if (esEdicion)
+                {
+                    <button type="button" @onclick="Eliminar" class="btn btn-danger bi bi-trash"> Eliminar</button>
+                }
+            </div>
+        </div>
+    </div>
+</EditForm>
+
+@code {
+    [Parameter] public int EntradaId { get; set; }
+
+   
+    private Entrada Entrada = new();
+    private List<Productos> productosDisponibles = new();
+
+    private string titulo = "Crear Entrada";
+    private bool esEdicion => EntradaId > 0;
+
+    private int ProductoSeleccionadoId = 0;
+    private int cantidadDetalle = 1;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        
+        productosDisponibles = await productosService.Listar(p => true);
+
+        if (esEdicion)
+        {
+            titulo = "Editar Entrada";
+            var entradaEncontrada = await entradasService.Buscar(EntradaId);
+            if (entradaEncontrada != null)
+                Entrada = entradaEncontrada;
+        }
+        else
+        {
+            titulo = "Crear Entrada";
+            Entrada = new Entrada();
+        }
+    }
+
+    private async Task AgregarDetalle()
+    {
+        if (ProductoSeleccionadoId == 0 || cantidadDetalle <= 0) return;
+
+        var producto = await productosService.Buscar(ProductoSeleccionadoId);
+        if (producto != null)
+        {
+            var nuevoDetalle = new EntradaDetalle
+            {
+                ProductoId = producto.ProductoId,
+                Cantidad = cantidadDetalle,
+                Costo = producto.Costo
+            };
+
+            Entrada.Detalles.Add(nuevoDetalle);
+            CalcularTotal();
+
+            
+            ProductoSeleccionadoId = 0;
+            cantidadDetalle = 1;
+        }
+    }
+
+    private void RemoverDetalle(EntradaDetalle detalle)
+    {
+        Entrada.Detalles.Remove(detalle);
+        CalcularTotal();
+    }
+
+    private void CalcularTotal()
+    {
+        Entrada.Total = Entrada.Detalles.Sum(d => d.Cantidad * d.Costo);
+    }
+
+    private async Task Guardar()
+    {
+        if (Entrada.Detalles == null || Entrada.Detalles.Count == 0)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "Debe agregar al menos un producto al detalle.");
+            return;
+        }
+
+        var guardado = await entradasService.Guardar(Entrada);
+        if (guardado)
+            navigationManager.NavigateTo("/Entrada/Index");
+        else
+            await JSRuntime.InvokeVoidAsync("alert", "Error al guardar la entrada.");
+    }
+
+    private async Task Eliminar()
+    {
+        if (esEdicion)
+        {
+            bool confirmado = await JSRuntime.InvokeAsync<bool>("confirm", "¿Está seguro de eliminar esta entrada?");
+            if (confirmado)
+            {
+                if (await entradasService.Eliminar(Entrada.EntradaId))
+                    navigationManager.NavigateTo("/Entrada/Index");
+            }
+        }
+    }
+}

@@ -1,0 +1,109 @@
+﻿@page "/Producto/Create"
+@page "/Producto/Edit/{ProductoId:int}"
+@attribute [Authorize]
+
+@inject ProductosService productosService
+@inject NavigationManager navigationManager
+@inject IJSRuntime JSRuntime
+@rendermode InteractiveServer
+
+<PageTitle>@Titulo</PageTitle>
+
+<EditForm Model="Producto" OnValidSubmit="Guardar">
+    <DataAnnotationsValidator />
+
+    <div class="container">
+        <div class="card shadow-lg">
+            <div class="card-header text-center">
+                <h5 class="card-title">@Titulo</h5>
+            </div>
+
+            <div class="card-body">
+                @* Fila 1: ID y Descripción *@
+                <div class="row mb-3">
+                    <div class="col-md-3">
+                        <label class="form-label">Producto Id</label>
+                        <InputNumber class="form-control" @bind-Value="Producto.ProductoId" readonly />
+                    </div>
+                    <div class="col-md-9">
+                        <label class="form-label">Descripción</label>
+                        <InputText class="form-control" @bind-Value="Producto.Descripcion" />
+                        <ValidationMessage For="@(() => Producto.Descripcion)" />
+                    </div>
+                </div>
+
+                @* Fila 2: Costo, Precio y Existencia *@
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <label class="form-label">Costo</label>
+                        <InputNumber class="form-control" @bind-Value="Producto.Costo" />
+                        <ValidationMessage For="@(() => Producto.Costo)" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Precio</label>
+                        <InputNumber class="form-control" @bind-Value="Producto.Precio" />
+                        <ValidationMessage For="@(() => Producto.Precio)" />
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">Existencia (Solo Lectura)</label>
+                        @* Readonly porque aumenta por Entradas  *@
+                        <InputNumber class="form-control" @bind-Value="Producto.Existencia" readonly />
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-footer text-center">
+                <a href="/Producto/Index" class="btn btn-secondary">
+                    <i class="bi bi-arrow-left"></i> Volver
+                </a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-floppy"></i> Guardar
+                </button>
+                @if (ProductoId > 0)
+                {
+                    <button type="button" class="btn btn-danger" @onclick="Eliminar">
+                        <i class="bi bi-trash"></i> Eliminar
+                    </button>
+                }
+            </div>
+        </div>
+    </div>
+</EditForm>
+
+@code {
+    [Parameter]
+    public int ProductoId { get; set; }
+
+    public Productos Producto { get; set; } = new Productos();
+    public string Titulo => ProductoId > 0 ? "Editar Producto" : "Crear Producto";
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (ProductoId > 0)
+        {
+            var encontrado = await productosService.Buscar(ProductoId);
+            if (encontrado != null)
+                Producto = encontrado;
+        }
+    }
+
+    private async Task Guardar()
+    {
+        var guardado = await productosService.Guardar(Producto);
+        if (guardado)
+        {
+            navigationManager.NavigateTo("/Producto/Index");
+        }
+    }
+
+    private async Task Eliminar()
+    {
+        var confirmado = await JSRuntime.InvokeAsync<bool>("confirm", "¿Está seguro de eliminar este producto?");
+        if (confirmado)
+        {
+            var eliminado = await productosService.Eliminar(ProductoId);
+            if (eliminado)
+                navigationManager.NavigateTo("/Producto/Index");
+        }
+    }
+}

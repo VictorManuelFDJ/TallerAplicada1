@@ -1,0 +1,124 @@
+﻿@page "/Entrada/Index"
+@attribute [Authorize]
+@inject EntradasService entradasService
+@rendermode InteractiveServer
+
+<PageTitle>Consulta de Entradas</PageTitle>
+
+<div class="container">
+    <div class="card shadow-lg">
+        <div class="card-header">
+            <h5 class="card-title">Consulta de Entradas de Inventario</h5>
+            <a href="/Entrada/Create" class="btn btn-primary bi bi-plus-square"> Crear Entrada</a>
+        </div>
+
+        <div class="card-body">
+            <div class="row mt-3">
+                <div class="col-3">
+                    <label class="col-form-label"><strong>Desde</strong></label>
+                    <InputDate class="form-control" @bind-Value="Desde"></InputDate>
+                </div>
+                <div class="col-3">
+                    <label class="col-form-label"><strong>Hasta</strong></label>
+                    <InputDate class="form-control" @bind-Value="Hasta"></InputDate>
+                </div>
+            </div>
+
+            <div class="row align-items-end mt-2">
+                <div class="col-3">
+                    <label class="form-label"><strong>Filtrar Por:</strong></label>
+                    <InputSelect class="form-select" @bind-Value="Filtro">
+                        <option value="" selected disabled>Elija una opción</option>
+                        <option value="Id">Id</option>
+                        <option value="Concepto">Concepto</option>
+                    </InputSelect>
+                </div>
+
+                <div class="col-4">
+                    <label class="form-label"><strong>Búsqueda</strong></label>
+                    <div class="input-group">
+                        <input class="form-control" @bind-value="ValorFiltro" placeholder="Buscar..." />
+                        <button type="button" class="btn btn-primary bi bi-search" @onclick="Buscar"></button>
+                    </div>
+                </div>
+                <div class="col-3">
+                    <button type="button" class="btn btn-secondary bi bi-arrow-counterclockwise" @onclick="Restablecer"></button>
+                </div>
+            </div>
+
+            <table class="table table-hover mt-3">
+                <thead class="table-striped text-black">
+                    <tr>
+                        <th>Id</th>
+                        <th>Fecha</th>
+                        <th>Concepto</th>
+                        <th>Total</th>
+                        <th>Opciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var entrada in listaEntradas)
+                    {
+                        <tr>
+                            <td>@entrada.EntradaId</td>
+                            <td>@entrada.Fecha.ToShortDateString()</td>
+                            <td>@entrada.Concepto</td>
+                            <td>@entrada.Total.ToString("N2")</td>
+                            <td>
+                                <a href="/Entrada/Edit/@entrada.EntradaId" class="btn btn-outline-primary bi bi-pencil-square"></a>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="card-footer d-flex justify-content-between">
+            <label><strong>Cantidad: </strong>@listaEntradas.Count()</label>
+            <label><strong>Monto Total: </strong>@listaEntradas.Sum(e => e.Total).ToString("N2")</label>
+        </div>
+    </div>
+</div>
+
+@code {
+    public List<Entrada> listaEntradas { get; set; } = new();
+    public string Filtro { get; set; } = string.Empty;
+    public string ValorFiltro { get; set; } = string.Empty;
+    public DateTime? Desde { get; set; }
+    public DateTime? Hasta { get; set; }
+
+    protected override async Task OnInitializedAsync()
+    {
+        listaEntradas = await entradasService.Listar(e => true);
+    }
+
+    public async Task Buscar()
+    {
+        var listaFiltrada = await entradasService.Listar(e => e.EntradaId > 0);
+
+        if (Desde.HasValue)
+            listaFiltrada = listaFiltrada.Where(e => e.Fecha.Date >= Desde.Value.Date).ToList();
+
+        if (Hasta.HasValue)
+            listaFiltrada = listaFiltrada.Where(e => e.Fecha.Date <= Hasta.Value.Date).ToList();
+
+        if (!string.IsNullOrEmpty(Filtro))
+        {
+            if (Filtro == "Id" && int.TryParse(ValorFiltro, out int id))
+                listaFiltrada = listaFiltrada.Where(e => e.EntradaId == id).ToList();
+            else if (Filtro == "Concepto")
+                listaFiltrada = listaFiltrada.Where(e => e.Concepto.ToLower().Contains(ValorFiltro.ToLower())).ToList();
+        }
+
+        listaEntradas = listaFiltrada;
+    }
+
+    public async Task Restablecer()
+    {
+        listaEntradas = await entradasService.Listar(e => true);
+        Filtro = string.Empty;
+        ValorFiltro = string.Empty;
+        Desde = null;
+        Hasta = null;
+    }
+}
